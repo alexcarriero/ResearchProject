@@ -1,0 +1,157 @@
+---
+title: "4600 Project Figures"
+author: "Alex Carriero"
+output: pdf_document
+---
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(gt)
+library(paletteer)
+```
+
+# Import Data 
+```{r, message=FALSE, warning=FALSE}
+a<- read_csv("bias_b0_undernull.csv")
+b<- read_csv("bias_b0_underalt.csv")
+c<- read_csv("bias_b1_underalt.csv")
+d<- read_csv("type1error.csv")
+e<- read_csv("power.csv")
+
+head(a,20)
+```
+
+<br/>
+<br/>
+<br/>
+<br/>
+
+## Build Tables: 
+```{r}
+a<-as.data.frame(a)
+a$icc<-recode(a$icc, '0.5' = 'ICC=0.5','0.25'= 'ICC=0.25', '0'= 'ICC=0')
+a %>%
+  gt(groupname_col="icc")%>%
+  cols_move_to_start(
+    column=vars(p)
+  )%>%
+  cols_label(
+    cluster_number = "Number of Clusters",
+    p= "Proportion of Singletons"
+  )%>%
+  fmt_number(columns = vars(LM,LMM,GEE), decimals = 4) %>%
+  tab_header(
+    title= md("Percent Relative Bias of B0"),subtitle= "Under the Null Hypothesis") 
+```
+
+```{r}
+b<-as.data.frame(b)
+b$icc<-recode(b$icc, '0.5' = 'ICC=0.5','0.25'= 'ICC=0.25', '0'= 'ICC=0')
+b %>%
+  gt(groupname_col="icc")%>%
+  cols_move_to_start(
+    column=vars(p)
+  )%>%
+  cols_label(
+    cluster_number = "Number of Clusters",
+    p= "Proportion of Singletons"
+  )%>%
+  fmt_number(columns = vars(LM,LMM,GEE), decimals = 4) %>%
+  tab_header(
+    title= md("Percent Relative Bias of B0"),subtitle= "Under B1=1") 
+```
+
+```{r}
+c<-as.data.frame(c)
+c$icc<-recode(c$icc, '0.5' = 'ICC=0.5','0.25'= 'ICC=0.25', '0'= 'ICC=0')
+c %>%
+  gt(groupname_col="icc")%>%
+  cols_move_to_start(
+    column=vars(p)
+  )%>%
+  cols_label(
+    cluster_number = "Number of Clusters",
+    p= "Proportion of Singletons"
+  )%>%
+  fmt_number(columns = vars(LM,LMM,GEE), decimals = 4) %>%
+  tab_header(
+    title= md("Percent Relative Bias of B1"),subtitle= "Under B1=1")
+```
+
+\newpage
+### Simulation Interval 
+```{r}
+size=0.05
+trueSE=sqrt(size*(1-size)/1000)        # if nominal=actual significance level
+size + c(-1,1)*1.96*trueSE               # simulation interval
+```
+
+```{r}
+d<-as.data.frame(d)
+d$icc<-recode(d$icc, '0.5' = 'ICC=0.5','0.25'= 'ICC=0.25', '0'= 'ICC=0')
+d %>%
+  gt(groupname_col="icc")%>%
+  cols_move_to_start(
+    column=vars(p)
+  )%>%
+  cols_label(
+    cluster_number = "Number of Clusters",
+    p= "Proportion of Singletons"
+  )%>%
+  fmt_number(columns = vars(LM,LMM,GEE), decimals = 4) %>%
+  tab_header(
+    title= md("Empirical Type 1 Error"), subtitle = "B1=0"
+    )%>%
+    tab_style(
+    style = list(
+      cell_fill(color = "#FFFBEB"),
+      cell_text(style = "oblique")
+      ),
+    locations = cells_body(
+      columns = vars(LM),
+      rows = LM > 0.06350837)
+    )%>%
+      tab_style(
+    style = list(
+      cell_fill(color = "#FFFBEB"),
+      cell_text(style = "oblique")
+      ),
+    locations = cells_body(
+      columns = vars(LMM),
+      rows = LMM > 0.06350837)
+    )%>%
+    tab_style(
+    style = list(
+      cell_fill(color = "#FFFBEB"),
+      cell_text(style = "oblique")
+      ),
+    locations = cells_body(
+      columns = vars(GEE),
+      rows = GEE > 0.06350837)
+    # Why won't this show the color 
+    # indications on the pdf
+    # ?
+    )
+
+```
+
+
+\newpage
+```{r}
+e<-as.data.frame(e)
+e$icc<-recode(e$icc, '0.5' = 'ICC=0.5','0.25'= 'ICC=0.25', '0'= 'ICC=0')
+e %>%
+  gt(rowname_col= "p", groupname_col="icc")%>%
+  fmt_number(columns = vars(LM,LMM,GEE), decimals = 4) %>%
+  tab_header(
+    title= md("Power"),subtitle= "B1=1")
+```
+
+
+
+```{r, echo=FALSE}
+#pretty colors 
+
+#FFFBEB
+#FEF3C7
+#FDE68A
+```

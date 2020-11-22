@@ -1,0 +1,574 @@
+---
+title: "Fix the Simulation Study"
+author: "Alex Carriero"
+date: "09/11/2020"
+output: pdf_document
+---
+## Packages
+```{r, warning=FALSE, message=FALSE}
+library(gee)
+library(lme4)
+library(WWGbook)
+library(tidyverse)
+```
+
+## Function to calculate percent relative bias: 
+```{r}
+pbias=function(x,truemu){
+ (mean(x)-truemu)/truemu * 100
+}
+```
+
+
+
+## Run Simulation 
+```{r, results='hide'}
+simulation= function(betaone, seed, singletons, alpha_variance, epsilon_variance){
+cluster_number= c(40,80,120,360)
+nITER= 1000
+B0=6
+B1=betaone
+p=singletons
+pp=1-p
+sigma_epsilon= sqrt(epsilon_variance)
+sigma_alpha= sqrt(alpha_variance)
+size=0.05
+set.seed(seed)
+
+# inner loop storage
+B0_matrix= matrix(NA, nrow=nITER, ncol= 3)
+B1_matrix= matrix(NA, nrow=nITER, ncol= 3)
+se0_matrix=matrix(NA, nrow=nITER, ncol= 3)
+se1_matrix=matrix(NA, nrow=nITER, ncol= 3)
+reject_H0= matrix(NA, nrow=nITER, ncol= 3)
+dimnames(B0_matrix)= list(NULL, c("LM","LMM","GEE"))
+dimnames(B1_matrix)= list(NULL, c("LM","LMM","GEE"))
+dimnames(se0_matrix)=list(NULL, c("LM","LMM","GEE"))
+dimnames(se1_matrix)=list(NULL, c("LM","LMM","GEE"))
+dimnames(reject_H0)= list(NULL, c("LM","LMM","GEE"))
+
+# outer loop storage 
+bias_B1=matrix(NA, nrow=length(cluster_number), ncol=3)
+bias_B0=matrix(NA, nrow=length(cluster_number), ncol=3)
+power=  matrix(NA, nrow=length(cluster_number), ncol=3)
+mean_se0= matrix(NA,nrow=length(cluster_number),ncol=3)
+mean_se1= matrix(NA,nrow=length(cluster_number),ncol=3)
+emp_se0 = matrix(NA,nrow=length(cluster_number),ncol=3)
+emp_se1 = matrix(NA,nrow=length(cluster_number),ncol=3)
+dimnames(bias_B1)= list(cluster_number, c("LM", "LMM", "GEE")) 
+dimnames(bias_B0)= list(cluster_number, c("LM", "LMM", "GEE")) 
+dimnames(power)=   list(cluster_number, c("LM", "LMM", "GEE"))
+dimnames(mean_se0)=list(cluster_number, c("LM", "LMM", "GEE"))
+dimnames(mean_se1)=list(cluster_number, c("LM", "LMM", "GEE"))
+dimnames(emp_se0)= list(cluster_number, c("LM", "LMM", "GEE"))
+dimnames(emp_se1)= list(cluster_number, c("LM", "LMM", "GEE"))
+
+for(k in 1:length(cluster_number)){
+m=cluster_number[k]
+
+                for (j in 1:nITER){
+                n=m*(1+pp)
+                x=c(rep(0,n/2), rep(1,n/2))
+                cluster_id= c(1:(m*p/2), (m*p/2+1):(m-m*p/2), (m*p/2+1):(m-m*p/2), (m-m*p/2+1):m)
+                cluster_id= sort(cluster_id, decreasing=FALSE)
+                q=numeric()
+                    for (i in seq(1, m*(pp)*2, by=2)){
+                    q[i]= rnorm(1, 0, sd=sigma_alpha)
+                    q[i+1]= q[i]
+                    }
+                z=c(rep(0, m*p/2),q, rep(0, m*p/2))
+                y=B0+(B1*x)+ z + rnorm(n,sd=sigma_epsilon)
+                df<- data.frame(cluster_id, x, z, y)
+                df$x<-as.factor(df$x)
+                
+                # run analyses
+                 a<- gee(y~x, id=cluster_id, corstr="exchangeable", data=df)
+                 b<- lmer(y~ x+(1|cluster_id), data=df)
+                 c<- lm(y~x, data=df)
+                 
+                 # store model information 
+                 
+                 B0_matrix[j,]=c(c$coefficients[1],fixef(b)[1],a$coefficients[1])
+                 B1_matrix[j,]=c(c$coefficients[2],fixef(b)[2],a$coefficients[2])
+                 se0_matrix[j,]=c(summary(c)$coefficients[1,2],sqrt(diag(vcov(b)))[1],
+                                  summary(a)$coefficients[1,4])
+                 se1_matrix[j,]=c(summary(c)$coefficients[2,2],sqrt(diag(vcov(b)))[2],
+                                  summary(a)$coefficients[2,4])
+                 
+                 # generate test statistics and two sided p-values 
+                 a_ts= a$coefficients[2]/ summary(a)$coefficients[2,4]
+                 b_ts= fixef(b)[2]/ sqrt(diag(vcov(b)))[2]
+                 c_ts= c$coefficients[2]/ summary(c)$coefficients[2,2]
+                 
+                 a_pval= 2*(1-pnorm(abs(a_ts)))
+                 b_pval= 2*(1-pt(abs(b_ts),m-2))
+                 c_pval= 2*(1-pt(abs(c_ts),n-2))
+                 # store indication of H0: B1=0 accepted or rejected
+                 reject_H0[j,]=c(c_pval<size, b_pval<size, a_pval<size)
+                 }
+
+bias_B0[k,]=apply(B0_matrix, 2, pbias, truemu=B0)
+bias_B1[k,]=apply(B1_matrix, 2, pbias, truemu=B1)
+
+power[k,]=  apply(reject_H0, 2, mean)
+
+mean_se0[k,]= apply(se0_matrix,2, mean)
+mean_se1[k,]= apply(se1_matrix,2, mean)
+emp_se0[k,]=  apply(B0_matrix, 2, sd)
+emp_se1[k,]=  apply(B1_matrix, 2, sd)
+}
+
+out<- list(bias_B0,bias_B1,mean_se0,mean_se1, emp_se0, emp_se1, power)
+return(out)
+}
+```
+
+
+
+## ICC 0.5
+```{r}
+null_icc5_quarter<-simulation(0,24,1/4,1,1)
+```
+```{r}
+null_icc5_quarter
+```
+
+
+
+```{r}
+alt_icc5_quarter<-simulation(1,240,1/4,1,1)
+```
+```{r}
+alt_icc5_quarter
+```
+
+```{r}
+null_icc5_half<-simulation(0,25,1/2,1,1)
+```
+```{r}
+null_icc5_half
+```
+
+```{r}
+alt_icc5_half<-simulation(1,250,1/2,1,1)
+```
+```{r}
+alt_icc5_half
+```
+
+```{r}
+null_icc5_3quarter<- simulation(0,26,3/4,1,1)
+```
+```{r}
+null_icc5_3quarter
+```
+
+```{r}
+alt_icc5_3quarter<- simulation(1,260,3/4,1,1)
+```
+```{r}
+alt_icc5_3quarter
+```
+
+
+```{r}
+citation(package="gee")
+```
+
+```{r}
+citation(package="lme4")
+```
+
+```{r}
+citation(package="WWGbook")
+```
+
+
+
+## ICC 0.25
+
+```{r}
+null_icc25_quarter<- simulation(0,34,1/4,1,3)
+```
+```{r}
+null_icc25_quarter
+```
+
+```{r}
+alt_icc25_quarter<- simulation(1,340,1/4,1,3)
+```
+
+```{r}
+null_icc25_half<- simulation(0,35,1/2,1,3)
+```
+
+```{r}
+alt_icc25_half<- simulation(1,350,1/2,1,3)
+```
+
+```{r}
+null_icc25_3quarter<- simulation(0,36,3/4,1,3)
+```
+
+```{r}
+alt_icc25_3quarter<- simulation(1,360,3/4,1,3)
+```
+
+
+## ICC 0.00
+
+```{r}
+null_icc0_quarter<- simulation(0,44,1/4,0,1)
+```
+
+```{r}
+alt_icc0_quarter<- simulation(1,440,1/4,0,1)
+```
+
+```{r}
+null_icc0_half<- simulation(0,45,1/2,0,1)
+```
+
+```{r}
+alt_icc0_half<- simulation(1,450,1/2,0,1)
+```
+
+```{r}
+null_icc0_3quarter<- simulation(0,46,3/4,0,1)
+```
+
+```{r}
+alt_icc0_3quarter<- simulation(1,460,3/4,0,1)
+```
+
+
+
+## Build data frames
+### B0 under null
+```{r}
+d<-as_tibble(null_icc5_quarter[[1]])
+d$cluster_number <- cluster_number
+d$p <- 0.25
+d$icc <- 0.5
+
+e<-as_tibble(null_icc5_half[[1]])
+e$cluster_number <- cluster_number
+e$p <- 0.5
+e$icc <- 0.5
+
+f<-as_tibble(null_icc5_3quarter[[1]])
+f$cluster_number <- cluster_number
+f$p <- 0.75
+f$icc <- 0.5
+
+g<-as_tibble(null_icc25_quarter[[1]])
+g$cluster_number <- cluster_number
+g$p <- 0.25
+g$icc <- 0.25
+
+h<-as_tibble(null_icc25_half[[1]])
+h$cluster_number <- cluster_number
+h$p <- 0.5
+h$icc <- 0.25
+
+i<-as_tibble(null_icc25_3quarter[[1]])
+i$cluster_number <- cluster_number
+i$p <- 0.75
+i$icc <- 0.25
+
+j<-as_tibble(null_icc0_quarter[[1]])
+j$cluster_number <- cluster_number
+j$p <- 0.25
+j$icc <- 0
+
+k<-as_tibble(null_icc0_half[[1]])
+k$cluster_number <- cluster_number
+k$p <- 0.5
+k$icc <- 0
+
+l<-as_tibble(null_icc0_3quarter[[1]])
+l$cluster_number <- cluster_number
+l$p <- 0.75
+l$icc <- 0
+
+m <- rbind(d,e,f,g,h,i,j,k,l)
+m <-m %>% select(cluster_number,p,icc, everything())
+write_csv(m,"bias_b0_undernull.csv")
+```
+
+### B0 under alt 
+```{r}
+d<-as_tibble(alt_icc5_quarter[[1]])
+d$cluster_number <- cluster_number
+d$p <- 0.25
+d$icc <- 0.5
+
+e<-as_tibble(alt_icc5_half[[1]])
+e$cluster_number <- cluster_number
+e$p <- 0.5
+e$icc <- 0.5
+
+f<-as_tibble(alt_icc5_3quarter[[1]])
+f$cluster_number <- cluster_number
+f$p <- 0.75
+f$icc <- 0.5
+
+g<-as_tibble(alt_icc25_quarter[[1]])
+g$cluster_number <- cluster_number
+g$p <- 0.25
+g$icc <- 0.25
+
+h<-as_tibble(alt_icc25_half[[1]])
+h$cluster_number <- cluster_number
+h$p <- 0.5
+h$icc <- 0.25
+
+i<-as_tibble(alt_icc25_3quarter[[1]])
+i$cluster_number <- cluster_number
+i$p <- 0.75
+i$icc <- 0.25
+
+j<-as_tibble(alt_icc0_quarter[[1]])
+j$cluster_number <- cluster_number
+j$p <- 0.25
+j$icc <- 0
+
+k<-as_tibble(alt_icc0_half[[1]])
+k$cluster_number <- cluster_number
+k$p <- 0.5
+k$icc <- 0
+
+l<-as_tibble(alt_icc0_3quarter[[1]])
+l$cluster_number <- cluster_number
+l$p <- 0.75
+l$icc <- 0
+
+m <- rbind(d,e,f,g,h,i,j,k,l)
+m <-m %>% select(cluster_number,p,icc, everything())
+write_csv(m,"bias_b0_underalt.csv")
+
+m
+```
+
+### B1 under alt 
+```{r}
+d<-as_tibble(alt_icc5_quarter[[2]])
+d$cluster_number <- cluster_number
+d$p <- 0.25
+d$icc <- 0.5
+
+e<-as_tibble(alt_icc5_half[[2]])
+e$cluster_number <- cluster_number
+e$p <- 0.5
+e$icc <- 0.5
+
+f<-as_tibble(alt_icc5_3quarter[[2]])
+f$cluster_number <- cluster_number
+f$p <- 0.75
+f$icc <- 0.5
+
+g<-as_tibble(alt_icc25_quarter[[2]])
+g$cluster_number <- cluster_number
+g$p <- 0.25
+g$icc <- 0.25
+
+h<-as_tibble(alt_icc25_half[[2]])
+h$cluster_number <- cluster_number
+h$p <- 0.5
+h$icc <- 0.25
+
+i<-as_tibble(alt_icc25_3quarter[[2]])
+i$cluster_number <- cluster_number
+i$p <- 0.75
+i$icc <- 0.25
+
+j<-as_tibble(alt_icc0_quarter[[2]])
+j$cluster_number <- cluster_number
+j$p <- 0.25
+j$icc <- 0
+
+k<-as_tibble(alt_icc0_half[[2]])
+k$cluster_number <- cluster_number
+k$p <- 0.5
+k$icc <- 0
+
+l<-as_tibble(alt_icc0_3quarter[[2]])
+l$cluster_number <- cluster_number
+l$p <- 0.75
+l$icc <- 0
+
+m <- rbind(d,e,f,g,h,i,j,k,l)
+m <-m %>% select(cluster_number,p,icc, everything())
+write_csv(m,"bias_b1_underalt.csv")
+
+m
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Emperical type 1 error 
+```{r}
+d<-as_tibble(null_icc5_quarter[[7]])
+d$cluster_number <- cluster_number
+d$p <- 0.25
+d$icc <- 0.5
+
+e<-as_tibble(null_icc5_half[[7]])
+e$cluster_number <- cluster_number
+e$p <- 0.5
+e$icc <- 0.5
+
+f<-as_tibble(null_icc5_3quarter[[7]])
+f$cluster_number <- cluster_number
+f$p <- 0.75
+f$icc <- 0.5
+
+g<-as_tibble(null_icc25_quarter[[7]])
+g$cluster_number <- cluster_number
+g$p <- 0.25
+g$icc <- 0.25
+
+h<-as_tibble(null_icc25_half[[7]])
+h$cluster_number <- cluster_number
+h$p <- 0.5
+h$icc <- 0.25
+
+i<-as_tibble(null_icc25_3quarter[[7]])
+i$cluster_number <- cluster_number
+i$p <- 0.75
+i$icc <- 0.25
+
+j<-as_tibble(null_icc0_quarter[[7]])
+j$cluster_number <- cluster_number
+j$p <- 0.25
+j$icc <- 0
+
+k<-as_tibble(null_icc0_half[[7]])
+k$cluster_number <- cluster_number
+k$p <- 0.5
+k$icc <- 0
+
+l<-as_tibble(null_icc0_3quarter[[7]])
+l$cluster_number <- cluster_number
+l$p <- 0.75
+l$icc <- 0
+
+m <- rbind(d,e,f,g,h,i,j,k,l)
+m <-m %>% select(cluster_number,p,icc, everything())
+write_csv(m,"type1error.csv")
+
+m
+```
+
+
+
+
+### Power
+```{r}
+d<-as_tibble(alt_icc5_quarter[[7]])
+d$cluster_number <- cluster_number
+d$p <- 0.25
+d$icc <- 0.5
+
+e<-as_tibble(alt_icc5_half[[7]])
+e$cluster_number <- cluster_number
+e$p <- 0.5
+e$icc <- 0.5
+
+f<-as_tibble(alt_icc5_3quarter[[7]])
+f$cluster_number <- cluster_number
+f$p <- 0.75
+f$icc <- 0.5
+
+g<-as_tibble(alt_icc25_quarter[[7]])
+g$cluster_number <- cluster_number
+g$p <- 0.25
+g$icc <- 0.25
+
+h<-as_tibble(alt_icc25_half[[7]])
+h$cluster_number <- cluster_number
+h$p <- 0.5
+h$icc <- 0.25
+
+i<-as_tibble(alt_icc25_3quarter[[7]])
+i$cluster_number <- cluster_number
+i$p <- 0.75
+i$icc <- 0.25
+
+j<-as_tibble(alt_icc0_quarter[[7]])
+j$cluster_number <- cluster_number
+j$p <- 0.25
+j$icc <- 0
+
+k<-as_tibble(alt_icc0_half[[7]])
+k$cluster_number <- cluster_number
+k$p <- 0.5
+k$icc <- 0
+
+l<-as_tibble(alt_icc0_3quarter[[7]])
+l$cluster_number <- cluster_number
+l$p <- 0.75
+l$icc <- 0
+
+m <- rbind(d,e,f,g,h,i,j,k,l)
+m <-m %>% select(cluster_number,p,icc, everything())
+write_csv(m,"power.csv")
+
+m
+```
+
+
+
+
+
+
+## Solve gee()
+
+Double Check the Data Frames: 
+```{r}
+generate_data=function(singletons,clusters,sigma_alpha, sigma_epsilon){
+p=singletons
+m=clusters
+pp=1-p
+n=m*(1+pp)
+x=c(rep(0,n/2), rep(1,n/2))
+cluster_id= c(1:(m*p/2), (m*p/2+1):(m-m*p/2), (m*p/2+1):(m-m*p/2), (m-m*p/2+1):m)
+cluster_id= sort(cluster_id, decreasing=FALSE)
+q=numeric()
+for (i in seq(1, m*(pp)*2, by=2)){
+    q[i]= rnorm(1, 0, sd=sigma_alpha)
+    q[i+1]= q[i]
+    }
+z=c(rep(0, m*p/2),q, rep(0, m*p/2))
+y=B0+(B1*x)+ z + rnorm(n,sd=sigma_epsilon)
+df<- data.frame(cluster_id, x, z, y)
+df$x<-as.factor(df$x)
+return (df)
+}
+```
+
+```{r}
+set.seed(259)
+generate_data(3/4,80,1,1)
+```
+```{r}
+nITER=100
+
+for (i in 1:nITER){
+  df<- generate_data(1/2,80,1,3)
+  a<-  gee(y~x, id=cluster_id, corstr="exchangeable", data=df)
+}
+```
+

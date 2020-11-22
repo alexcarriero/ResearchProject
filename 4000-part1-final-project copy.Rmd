@@ -1,0 +1,110 @@
+---
+title: "Stat*4000 Final Project"
+author: "Alex Carriero"
+output: pdf_document
+---
+
+## Part 1
+
+The density of the 2-parameter exponential is 
+$$
+f(x) = \left\{
+        \begin{array}{ll}
+            \frac{1}{b}e^{-\frac{(x-a)}{b}} & \quad x > a \\
+             0 & \quad \mathrm{otherwise}
+        \end{array}
+    \right.
+$$
+Parameter values assigned: **a=3, b=1**
+
+1. Find the expectation and variance of this distribution: 
+
+(a) **Determine the expectation:**\
+$E[X] = \int_{-\infty}^{\infty} x f(x)\, \mathrm{d}x$\
+\newline
+In this case, f(x) is the pdf of the 2 parameter exponential distribution,\
+$E[X] = \int_a^\infty \frac{1}{b} xe^{-\frac{(x-a)}{b}}\, \mathrm{d}x$\
+\newline
+substitute given parameters (a=3, b=1),\
+$E[X] = \int_3^\infty xe^{-(x-3)}\, \mathrm{d}x$\
+\
+**Determine the variance:**\
+$Var[X]= E[(x-\mu)^2]$\
+\newline
+$Var[X]= \int_a^\infty \frac{1}{b} (x-\mu)^2e^{-\frac{(x-a)}{b}}\, \mathrm{d}x$\
+\newline
+$Var[X]= \int_3^\infty (x-\mu)^2e^{-(x-3)}\, \mathrm{d}x$\
+\
+(b) The integrals shown above were evaluated using an online integral calculator: \
+**Expectation:** 
+$$E[X] = \int_a^\infty \frac{1}{b} xe^{-\frac{(x-a)}{b}}\, \mathrm{d}x = a + b$$
+Therefore, $E[X]= \mu$ = a + b for the pdf of the 2 parameter exponential distribution. For the parameter settings a=3 and b=1, the expectation is: $E[X]=4$. \
+\
+**Variance:**
+$$Var[X]= \int_a^\infty \frac{1}{b} (x-\mu)^2e^{-\frac{(x-a)}{b}}\, \mathrm{d}x = \mu^2 -2\mu(a+b) +2b^2 + 2ab+ a^2$$
+Substituting $\mu=a+b$,\
+Var[X]= $(a+b)^2 -2(a+b)(a+b) + 2b^2 + 2ab + a^2$\
+Var[X]= $-a^2 + a^2 -2ab +2ab -b^2+2b^2$\
+Var[X]= $b^2$\
+\
+Therefore, Var[X]= $b^2$ for the pdf of the 2 parameter exponential distribution. For the parameter settings of a=3 and b=1, the variance is $Var[X]= 1$
+
+2. Write an R function called d2EXP that takes as arguments x (a vector), a, and b and returns the density.  Make a density plot that shows that your function works.
+```{r, fig.height=4, fig.width=8}
+d2EXP= function(x,a,b){
+  # this function takes arguments x, a and b 
+  # and returns f(x)= (1/b)*e^(-(x-a)/b) when x > a
+  # and returns 0 otherwise
+  ifelse(x>a, (1/b)*exp(-(x-a)/b),0)
+}
+
+x= seq(0,15, length=1000)
+plot(x, d2EXP(x,3,1), col="red", type="b",
+      xlim= c(0,13), ylim=c(0,1), xlab="x", ylab="Density", 
+      main= "Density Plot of Exponential Distribution (a=3, b=1)")
+```
+
+(c) Write an R function that generates random numbers from the above distribution. Make a histogram with density plotted over the histogram, to show that your function works.\
+\
+Build a function that generates random numbers from the distribution $f(x)= \frac{1}{b}e^{\frac{-(x-a)}{b}}$ with support $x>a$ using the inverse CDF method:\
+\
+First, the cdf function was derived: 
+$F_X(x)= \int_{-\infty}^x \,f(s)\,\, \mathrm{d}s$\
+\newline
+$F_X(x)= \int_{a}^x \frac{1}{b}e^{\frac{-(s-a)}{b}}\, \,\, \mathrm{d}s$\
+\newline
+$F_X(x)= 1- e^{\frac{-(x-a)}{b}} \,, \,\,\, x>a$\
+\
+Then, the inverse cdf was derived.
+$F_{X}(x) = u \ \ \Longrightarrow \ \  x=F_{X}^{-1}(u)$\
+\
+$$1-e^{\frac{-(x-a)}{b}}=u \ \ \ \ \ \Longrightarrow \ \ \ \ \ e^{\frac{-(x-a)}{b}}= 1-u \ \ \ \ \ \Longrightarrow \ \ \ \ \ x= a-b\mathrm{ln}(1-u)$$
+\newline
+Therefore, \ \ \ \ $F_{X}^{-1}(u) = a-b\mathrm{ln}(1-u) \quad 0<u<1$
+\newpage
+Create a random number generator using the inverse CDF method:
+```{r, fig.height=5, fig.width=8}
+r2EXP= function(n,a,b){
+  u=runif(n)
+  x=a-b*log(1-u)
+}
+
+set.seed(100)
+sample=r2EXP(100,3,1)
+hist(sample, main = "Histogram of Randomly Generated Data", prob = TRUE, 
+     xlim=c(0,13), ylim=c(0,1), xlab= "x")
+
+x= seq(0,15, length=1000)
+lines(x, d2EXP(x,3,1), col="red")
+```
+
+(d) Check that numbers generated have the mean and variance found in part a.
+```{r}
+mean(sample)
+```
+
+```{r}
+var(sample)
+```
+
+Both the mean and variance of the randomly generated sample are very close to the theoretical values determined in part A.  

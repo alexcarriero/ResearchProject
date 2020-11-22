@@ -1,0 +1,52 @@
+---
+title: "A simulation-based comparison of confidence interval procedures for the mean of the two-parameter exponential distribution"
+author: "Alex Carriero"
+header-includes:
+    - \usepackage{setspace}\doublespacing
+bibliography: "4000-part2-final-project.bib"
+output: pdf_document
+---
+
+## Introduction 
+\ \ \ \ \ \ The purpose of this simulation study is to compare the performance of three confidence interval procedures for the mean where the data arise from a two parameter exponential distribution with known parameters.  The confidence intervals will be compared across two performance criteria, coverage probability and average length as sample size is varied.  The three confidence interval procedures to be compared in this simulation study include:
+$$CI_z = \left( \bar{x} - z_{\alpha/2} \frac{s}{\sqrt{n}}, \,\,\,\,\bar{x} - z_{\alpha/2} \frac{s}{\sqrt{n}}\right)$$
+$$CI_A = \left(\frac{\bar{x} -a}{1+\frac{z_{\alpha/2}}{\sqrt{n}}} +a, \,\,\,\,\frac{\bar{x} -a}{1-\frac{z_{\alpha/2}}{\sqrt{n}}} +a \right)$$
+$$CI_{AM} = \left(\frac{\bar{x}-x_{(1)}}{1+\frac{z_{\alpha/2}}{\sqrt{n}}} + x_{(1)}, \,\,\,\,\, \frac{\bar{x}-x_{(1)}}{1-\frac{z_{\alpha/2}}{\sqrt{n}}} + x_{(1)}     \right) $$
+
+where $\bar{x}$ is the sample mean, $s$ is the sample standard deviation, $a$ is the location parameter of the two parameter exponential distribution and $z_\alpha$ is the quantile of the standard normal distribution such that $P(Z > z_\alpha) = \alpha$ where $Z \sim N(0,1)$. Details of the two parameter exponential distribution are summarized below.
+
+\ \ \ \ \ \ The two parameter exponential distribution is a continuous probability distribution defined by the following probability density function, 
+$$
+f(x) = \left\{
+        \begin{array}{ll}
+            \frac{1}{b}e^{-\frac{(x-a)}{b}} & \quad x > a \\
+             0 & \quad \mathrm{otherwise}
+        \end{array}
+    \right.
+$$
+It is defined by two parameters: $a$, the location parameter and $b$, the scale parameter.\
+The expectation of this distribution (derived below) is known to be $E[X]= \mu = a+b$. 
+$$E[X] = \int_{-\infty}^{\infty} x f(x)\, \mathrm{d}x$$
+$$E[X] = \int_a^\infty \frac{1}{b} xe^{-\frac{(x-a)}{b}}\, \mathrm{d}x$$
+$$E[X]= \mu = a + b$$
+Additionally, the variance of this distribution is known to be $Var[X]= b^2$ (derived below). 
+$$Var[X]= E[(x-\mu)^2]$$
+$$Var[X]= \int_a^\infty \frac{1}{b} (x-\mu)^2e^{-\frac{(x-a)}{b}}\, \mathrm{d}x$$
+$$Var[X]= \mu^2 -2\mu(a+b) +2b^2 + 2ab+ a^2$$
+\ \ \ \ \ substituting $\mu= a+b$, 
+$$Var[X]= b^2$$
+In the following paper, a particular set of parameters $a$ and $b$ will be considered. Specifically, this paper focuses on the scenario in which the location parameter ($a$) is set to 3 and the scale parameter ($b$) is set to 1, resulting in a two parameter exponential distribution with mean: $\mu=4$ and variance: $\sigma^2=1$.\
+
+
+
+## Simulation Study Design 
+
+\ \ \ \ \ \ The simulation study will be conducted using the statistical software R [@R]. 
+
+## Results 
+
+## Conclusions 
+
+
+\newpage
+### References 
